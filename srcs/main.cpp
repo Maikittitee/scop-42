@@ -1,160 +1,147 @@
-extern "C" {
-    #include <mlx.h>
-}
-#include <iostream>
-#include <cstdlib>
-#include <math.h>
+#include<iostream>
+#include<glad/glad.h>
+#include<GLFW/glfw3.h>
 
-// Window dimensions
-#define WIDTH 800
-#define HEIGHT 600
+// Vertex Shader source code
+const char* vertexShaderSource = "#version 330 core\n"
+"layout (location = 0) in vec3 aPos;\n"
+"void main()\n"
+"{\n"
+"   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+"}\0";
+//Fragment Shader source code
+const char* fragmentShaderSource = "#version 330 core\n"
+"out vec4 FragColor;\n"
+"void main()\n"
+"{\n"
+"   FragColor = vec4(0.8f, 0.3f, 0.02f, 1.0f);\n"
+"}\n\0";
 
-#define ESC_KEY 65307
 
-// Structure to hold MLX data
-typedef struct s_data {
-    void    *mlx;
-    void    *win;
-    void    *img;
-    char    *addr;
-    int     bits_per_pixel;
-    int     line_length;
-    int     endian;
-} t_data;
-
-// Global variable to access data from hook functions
-t_data *g_data;
-
-// Function to put pixel in image
-void my_mlx_pixel_put(t_data *data, int x, int y, int color)
-{
-    char *dst;
-
-    dst = data->addr + (y * data->line_length + x * (data->bits_per_pixel / 8));
-    *(unsigned int*)dst = color;
-}
-
-// Create RGB color from individual components
-int create_trgb(int t, int r, int g, int b)
-{
-    return (t << 24 | r << 16 | g << 8 | b);
-}
-
-// Draw gradient effect
-void draw_gradient(t_data *data)
-{
-    int x, y;
-    int r, g, b;
-    
-    for (y = 0; y < HEIGHT; y++)
-    {
-        for (x = 0; x < WIDTH; x++)
-        {
-            // Create a diagonal gradient from purple to cyan
-            // Calculate color based on position
-            r = (255 * x) / WIDTH;                    // Red increases left to right
-            g = (255 * y) / HEIGHT;                   // Green increases top to bottom
-            b = 255 - ((255 * (x + y)) / (WIDTH + HEIGHT)); // Blue decreases diagonally
-            
-            // Alternative gradients you can try:
-            // Horizontal gradient: r = (255 * x) / WIDTH; g = 128; b = 255 - r;
-            // Vertical gradient: r = 255; g = (255 * y) / HEIGHT; b = 128;
-            // Radial gradient: see below
-            
-            int color = create_trgb(0, r, g, b);
-            my_mlx_pixel_put(data, x, y, color);
-        }
-    }
-}
-
-// Alternative: Radial gradient function
-void draw_radial_gradient(t_data *data)
-{
-    int x, y;
-    int center_x = WIDTH / 2;
-    int center_y = HEIGHT / 2;
-    double max_distance = sqrt(center_x * center_x + center_y * center_y);
-    
-    for (y = 0; y < HEIGHT; y++)
-    {
-        for (x = 0; x < WIDTH; x++)
-        {
-            double distance = sqrt((x - center_x) * (x - center_x) + (y - center_y) * (y - center_y));
-            double ratio = distance / max_distance;
-            
-            int r = (int)(255 * (1.0 - ratio));  // Red fades from center
-            int g = (int)(128 * ratio);          // Green increases from center
-            int b = (int)(255 * ratio);          // Blue increases from center
-            
-            int color = create_trgb(0, r, g, b);
-            my_mlx_pixel_put(data, x, y, color);
-        }
-    }
-}
-
-// Handle key press events
-int key_press(int keycode, void *param)
-{
-	(void)param;
-    
-	if ( keycode == ESC_KEY ) {
-		mlx_destroy_window(g_data->mlx, g_data->win);
- 		exit( 0 );
-	}
-	return( 0 ); 
-}
-
-// Handle window close button
-int close_window()
-{
-    mlx_destroy_window(g_data->mlx, g_data->win);
-    exit(0);
-}
 
 int main()
 {
-    t_data data;
-    g_data = &data;
+	// Initialize GLFW
+	glfwInit();
 
-    // Initialize MLX
-    data.mlx = mlx_init();
-    if (!data.mlx)
-    {
-        std::cerr << "Error: Failed to initialize MLX" << std::endl;
-        return (1);
-    }
+	// Tell GLFW what version of OpenGL we are using 
+	// In this case we are using OpenGL 3.3
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	// Tell GLFW we are using the CORE profile
+	// So that means we only have the modern functions
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    // Create a new window
-    data.win = mlx_new_window(data.mlx, WIDTH, HEIGHT, (char*)"Gradient Effect");
-    if (!data.win)
-    {
-        std::cerr << "Error: Failed to create window" << std::endl;
-        return (1);
-    }
+	// Create a GLFWwindow object of 800 by 800 pixels, naming it "YoutubeOpenGL"
+	GLFWwindow* window = glfwCreateWindow(800, 800, "YoutubeOpenGL", NULL, NULL);
+	// Error check if the window fails to create
+	if (window == NULL)
+	{
+		std::cout << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+	// Introduce the window into the current context
+	glfwMakeContextCurrent(window);
 
-    // Create an image
-    data.img = mlx_new_image(data.mlx, WIDTH, HEIGHT);
-    data.addr = mlx_get_data_addr(data.img, &data.bits_per_pixel, 
-                                  &data.line_length, &data.endian);
+	//Load GLAD so it configures OpenGL
+	gladLoadGL();
+	// Specify the viewport of OpenGL in the Window
+	// In this case the viewport goes from x = 0, y = 0, to x = 800, y = 800
+	glViewport(0, 0, 800, 800);
 
-    // Draw the gradient
-    draw_gradient(&data);
-    
-    // Uncomment this line and comment the above to try radial gradient:
-    // draw_radial_gradient(&data);
 
-    // Put the image to window
-    mlx_put_image_to_window(data.mlx, data.win, data.img, 0, 0);
 
-    // Set up event handlers
-    // mlx_key_hook(data.win, key_press, NULL);
-	mlx_hook(data.win, 2, 1L<<0, (int(*)())key_press, NULL);
-    mlx_hook(data.win, 17, 1L<<17, close_window, NULL);
+	// Create Vertex Shader Object and get its reference
+	GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	// Attach Vertex Shader source to the Vertex Shader Object
+	glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+	// Compile the Vertex Shader into machine code
+	glCompileShader(vertexShader);
 
-    std::cout << "Gradient window opened. Press any key or close button to exit." << std::endl;
+	// Create Fragment Shader Object and get its reference
+	GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	// Attach Fragment Shader source to the Fragment Shader Object
+	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+	// Compile the Vertex Shader into machine code
+	glCompileShader(fragmentShader);
 
-    // Start the event loop
-    mlx_loop(data.mlx);
+	// Create Shader Program Object and get its reference
+	GLuint shaderProgram = glCreateProgram();
+	// Attach the Vertex and Fragment Shaders to the Shader Program
+	glAttachShader(shaderProgram, vertexShader);
+	glAttachShader(shaderProgram, fragmentShader);
+	// Wrap-up/Link all the shaders together into the Shader Program
+	glLinkProgram(shaderProgram);
 
-    return (0);
+	// Delete the now useless Vertex and Fragment Shader objects
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+
+
+
+	// Vertices coordinates
+	GLfloat vertices[] =
+	{
+		-0.5f, -0.5f * float(sqrt(3)) / 3, 0.0f, // Lower left corner
+		0.5f, -0.5f * float(sqrt(3)) / 3, 0.0f, // Lower right corner
+		0.0f, 0.5f * float(sqrt(3)) * 2 / 3, 0.0f // Upper corner
+	};
+
+	// Create reference containers for the Vartex Array Object and the Vertex Buffer Object
+	GLuint VAO, VBO;
+
+	// Generate the VAO and VBO with only 1 object each
+	glGenVertexArrays(1, &VAO);
+	glGenBuffers(1, &VBO);
+
+	// Make the VAO the current Vertex Array Object by binding it
+	glBindVertexArray(VAO);
+
+	// Bind the VBO specifying it's a GL_ARRAY_BUFFER
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	// Introduce the vertices into the VBO
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	// Configure the Vertex Attribute so that OpenGL knows how to read the VBO
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	// Enable the Vertex Attribute so that OpenGL knows to use it
+	glEnableVertexAttribArray(0);
+
+	// Bind both the VBO and VAO to 0 so that we don't accidentally modify the VAO and VBO we created
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+
+
+	// Main while loop
+	while (!glfwWindowShouldClose(window))
+	{
+		// Specify the color of the background
+		glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
+		// Clean the back buffer and assign the new color to it
+		glClear(GL_COLOR_BUFFER_BIT);
+		// Tell OpenGL which Shader Program we want to use
+		glUseProgram(shaderProgram);
+		// Bind the VAO so OpenGL knows to use it
+		glBindVertexArray(VAO);
+		// Draw the triangle using the GL_TRIANGLES primitive
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+		// Swap the back buffer with the front buffer
+		glfwSwapBuffers(window);
+		// Take care of all GLFW events
+		glfwPollEvents();
+	}
+
+
+
+	// Delete all the objects we've created
+	glDeleteVertexArrays(1, &VAO);
+	glDeleteBuffers(1, &VBO);
+	glDeleteProgram(shaderProgram);
+	// Delete window before ending the program
+	glfwDestroyWindow(window);
+	// Terminate GLFW before ending the program
+	glfwTerminate();
+	return 0;
 }
